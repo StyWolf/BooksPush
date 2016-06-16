@@ -96,7 +96,7 @@ def catch(url):
 	soup = BeautifulSoup(resp.text,'lxml')
 	title = soup.find(id='nr_title').text
 	content = soup.find(id='nr1').text
-	content = title +  content.replace('shipei_x()',' ')
+	content = title +  content.replace('shipei_x()',' ').strip()
 	return content
 
 def index_num(caseUrl):
@@ -115,7 +115,7 @@ def index_num(caseUrl):
 			break
 		elif url == caseUrl[1]:
 			catchUrl = 'http://m.biquge.la' + url
-			with open(bookId + '.txt', 'a+') as f:
+			with open(bookId + '_' + str(n) + '.txt', 'a+') as f:
 				f.write(catch(catchUrl))
 			break
 		else:
@@ -123,6 +123,17 @@ def index_num(caseUrl):
 			with open(bookId + '_' + str(n) + '.txt', 'a+') as f:
 				f.write(catch(catchUrl))
 			n = n + 1
+	print n 		
+	if n != 0 :
+		with open(bookId + '.txt', 'a+') as f:
+			while n >= 0:
+				with open(bookId + '_' + str(n) + '.txt','r') as fp:
+					for line in fp.readlines():
+						f.write('\n' + line)
+				os.remove(bookId + '_' + str(n) + '.txt')
+				n = n - 1
+	else:
+		pass
 
 def main():
 	'''

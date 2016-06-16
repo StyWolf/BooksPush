@@ -4,10 +4,12 @@
 import os
 import os.path
 import sys
-import requests
 import re
+import requests
+import ConfigParser
 from bs4 import BeautifulSoup
-# from pyquery import PyQuery as pq
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -25,13 +27,6 @@ sys.setdefaultencoding('utf-8')
 	3、不是一章则和目录比对章节看有几章则抓取几章
 6、实现邮件推送服务
 '''
-cookies = {
-		'CNZZDATA1254628483' : '1083536743-1465956185-|1465956185',
-	}
-
-cookies.update({'cookie[511]' : '6991690'})
-cookies.update({'cookie[1]' : '6659311'})
-cookies.update({'cookie[14]' : '7077524'})
 headers = {
                  'User-Agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:47.0) Gecko/20100101 Firefox/47.0' ,
                  'Connection' : 'keep-alive',
@@ -40,14 +35,13 @@ headers = {
                  'Accept-Language' : 'zh-CN,zh;q=0.8'
          }
 
-def get_case():
+def get_case(cookies):
 	
 	resp = requests.get('http://m.biquge.la/shu.php',cookies=cookies,headers=headers)
 	resp.encoding = 'gbk'
 	
 	soup = BeautifulSoup(resp.text, 'lxml')
 	caseList = soup.find_all(href=re.compile(r"html$"))
-
 	while len(caseList) > 1 :
 		nId = caseList[0]['href'].split('/')[2]
 		cId = caseList[1]['href'].split('/')[2]
@@ -58,7 +52,8 @@ def get_case():
 		else:
 			yield (caseList[0]['href'],caseList[0]['href'])
 			del caseList[:1]
-
+	else:
+		yield (caseList[0]['href'],caseList[0]['href'])
 
 def get_index(cid):
 
@@ -83,36 +78,48 @@ def catch(url):
 	content = title + '\n' +  content.replace('shipei_x()',' ')
 	return content
 
-def index_num():
+def index_num(caseUrl):
 
+	# for cUrl, nUrl in get_case():
+	bookId = caseUrl[0].split('/')[2]	
+	n = 0 
+	for url in get_index(bookId):	
+		if caseUrl[0] == caseUrl[1]:
+			catchUrl = 'http://m.biquge.la' + caseUrl[0]
+			# print catch(catchUrl)
+			with open(bookId + '.txt', 'a+') as f:
+				f.write(catch(catchUrl))
+			break
+		elif url == caseUrl[1]:
+			catchUrl = 'http://m.biquge.la' + url
+			# print catch(catchUrl)
+			with open(bookId + '.txt', 'a+') as f:
+				f.write(catch(catchUrl))
+			break
+		else:
+			catchUrl = 'http://m.biquge.la' + url
+			# print catch(catchUrl)
+			with open(bookId + '_' + str(n) + '.txt', 'a+') as f:
+				f.write(catch(catchUrl))
+			n = n + 1
+
+def main():
+	
+	cf = ConfigParser.ConfigParser()
+	cf.read("config.ini")
+	ck = {k:v for k,v in cf.items("cookies")}
+	ckid = {'cookie[{cid}]'.format(cid=cid) : newurl for cid, newurl in cf.items("books")}
+	ck.update(ckid)
 	if os.path.exists("books"):
 		os.chdir("books")
 	else:
 		os.mkdir("books")
 		os.chdir("books")
 
-	for cUrl, nUrl in get_case():
-		bookId = cUrl.split('/')[2]	
-		n = 0 
-		for url in get_index(bookId):	
-			if cUrl == nUrl:
-				catchUrl = 'http://m.biquge.la' + cUrl
-				# print catch(catchUrl)
-				with open(bookId + '.txt', 'a+') as f:
-					f.write(catch(catchUrl))
-				break
-			elif url == nUrl:
-				catchUrl = 'http://m.biquge.la' + url
-				# print catch(catchUrl)
-				with open(bookId + '.txt', 'a+') as f:
-					f.write(catch(catchUrl))
-				break
-			else:
-				catchUrl = 'http://m.biquge.la' + url
-				# print catch(catchUrl)
-				with open(bookId + '_' + str(n) + '.txt', 'a+') as f:
-					f.write(catch(catchUrl))
-				n = n + 1
+	pool = ThreadPool(5)
+	pool.map(index_num, get_case(ck))
+	pool.close()
+	pool.join()
 
-index_num()
 
+main()
